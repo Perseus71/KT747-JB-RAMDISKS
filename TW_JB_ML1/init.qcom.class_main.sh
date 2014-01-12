@@ -26,42 +26,43 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# No path is set up at this point so we have to do it here.
-PATH=/sbin:/system/sbin:/system/bin:/system/xbin
-export PATH
+#
+# start ril-daemon only for targets on which radio is present
+#
+baseband=`getprop ro.baseband`
+multirild=`getprop ro.multi.rild`
+dsds=`getprop persist.dsds.enabled`
+netmgr=`getprop ro.use_data_netmgrd`
 
-# **** WARNING *****
-# This runs in a single-threaded, critical path portion
-# of the Android bootup sequence.  This is to guarantee
-# all necessary system partition fixups are done before
-# the rest of the system starts up.  Run any non-
-# timing critical tasks in a separate process to
-# prevent slowdown at boot.
+case "$baseband" in
+    "apq")
+    setprop ro.radio.noril yes
+    stop ril-daemon
+esac
 
-mount_need=false;
-echo "init:init.selinux_restore.sh: starting " > /dev/kmsg
-
-if [ ! -f /system/etc/selinux_restore ];then
-  setenforce 0 
-# This should be the first command
-# remount system as read-write.
-  mount -o rw,remount,barrier=1 /system
-  mount_need=true;
-
-# Run restore context
-  restorecon -R /cache
-  restorecon -R /system
-  restorecon -R /data
-  echo "init: init.selinux_restore.sh: restorecon done" > /dev/kmsg
-fi
-
-touch /system/etc/selinux_restore
-chmod 664 /system/etc/selinux_restore
-
-if $mount_need ;then
-# This should be the last command
-# remount system as read-only.
-  mount -o ro,remount,barrier=1 /system
-# echo "mount -o ro,remount,barrier=1 /system" > /dev/kmsg
-fi
-
+case "$baseband" in
+    "msm" | "csfb" | "svlte2a" | "mdm" | "sglte" | "sglte2" | "dsda2" | "unknown")
+    start qmuxd
+    case "$baseband" in
+        "svlte2a" | "csfb" | "sglte" | "sglte2")
+        start qmiproxy
+        ;;
+        "dsda2")
+          setprop ro.multi.rild true
+          setprop persist.multisim.config dsda
+          stop ril-daemon
+          start ril-daemon
+          start ril-daemon1
+    esac
+    case "$multirild" in
+        "true")
+         case "$dsds" in
+             "true")
+             start ril-daemon1
+         esac
+    esac
+    case "$netmgr" in
+        "true")
+        start netmgrd
+    esac
+esac

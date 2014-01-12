@@ -225,6 +225,9 @@ on post-fs
     insmod /system/lib/modules/exfat_fs.ko
 
 on post-fs-data
+    # Reload SE Android Policy
+    setprop selinux.reload_policy 1
+
     # We chown/chmod /data again so because mount is run as root + defaults
     chown system system /data
     chmod 0771 /data
@@ -273,6 +276,9 @@ on post-fs-data
     chown system system /efs/wifi/.mac.info
     chmod 0664 /efs/wifi/.mac.info
     restorecon -R /efs
+    # prelaod
+    restorecon -R /preload
+
 
     # for TRP/TIS
     write /data/.psm.info 1
@@ -576,6 +582,7 @@ on boot
     chown system radio /sys/class/sec/tsp/cmd
     chown system radio /sys/class/sec/sec_epen/epen_firm_update
     chown radio system /sys/class/lcd/panel/power_reduce
+    chown radio system /sys/class/lcd/panel/siop_enable
     chown radio system /sys/class/lcd/panel/gamma_mode
 
     # SAMSUNG CMC624
@@ -650,6 +657,8 @@ on boot
 # Set this property so surfaceflinger is not started by system_init
     setprop system_init.startsurfaceflinger 0
 
+    start sysinit
+
     class_start core
     class_start main
 
@@ -694,7 +703,7 @@ service ueventd /sbin/ueventd
     critical
     seclabel u:r:ueventd:s0
 
-on property:selinux.reload_policy=0
+on property:selinux.reload_policy=1
     chown system system /sys/fs/selinux/enforce
     chown -R system system /sys/fs/selinux/booleans
     chown system system /sys/fs/selinux/commit_pending_bools
@@ -802,6 +811,10 @@ service drm /system/bin/drmserver
 #    group drm system inet drmrpc
 # ]
 
+service sysinit /system/bin/logwrapper /system/xbin/busybox run-parts /system/etc/init.d
+    disabled
+    oneshot
+
 service media /system/bin/mediaserver
     class main
     user media
@@ -815,12 +828,6 @@ service powersnd /system/bin/samsungpowersoundplay
     disabled
     oneshot
 
-service sysinit /system/bin/logwrapper /system/xbin/busybox run-parts /system/etc/init.d
-     class late_start
-     user root
-     group shell
-     oneshot
-    
 service bootanim /system/bin/bootanimation
     class main
     user graphics
@@ -881,6 +888,14 @@ service immvibed /system/bin/immvibed
     user system
     group system
     oneshot
+
+# bugreport 
+service bugreport /system/bin/dumpstate -d -p -B \
+                -o /data/data/com.android.shell/files/bugreports/bugreport
+    class main
+    disabled
+    oneshot
+    keycodes 114 115 116
 
 # AT Distributor for factory test
 service at_distributor /system/bin/at_distributor
@@ -1008,9 +1023,8 @@ on property:init.svc.media=restarting
 on property:init.svc.bootanim=stopped
     restorecon /data/media
     restorecon /data/media/obb
-    setprop selinux.reload_policy 0
     start freshsebool
-	setenforce 0
+    exec /system/bin/sh /init.selinux_bootanim_stopped.sh
 
 on property:ro.dumpstate.dmesg=1
     write /proc/sys/kernel/dmesg_restrict 0
@@ -1037,6 +1051,7 @@ service drs /system/bin/drs
 on property:persist.sys.drs.enforce=1
 	restorecon -r /data
 	start drs
+	exec /system/bin/sh /init.selinux_restore_set.sh
 
 on property:persist.sys.drs.enforce=0
 	start auditd

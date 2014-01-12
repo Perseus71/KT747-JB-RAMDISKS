@@ -26,42 +26,13 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-# No path is set up at this point so we have to do it here.
-PATH=/sbin:/system/sbin:/system/bin:/system/xbin
-export PATH
-
-# **** WARNING *****
-# This runs in a single-threaded, critical path portion
-# of the Android bootup sequence.  This is to guarantee
-# all necessary system partition fixups are done before
-# the rest of the system starts up.  Run any non-
-# timing critical tasks in a separate process to
-# prevent slowdown at boot.
-
-mount_need=false;
-echo "init:init.selinux_restore.sh: starting " > /dev/kmsg
-
-if [ ! -f /system/etc/selinux_restore ];then
-  setenforce 0 
-# This should be the first command
-# remount system as read-write.
-  mount -o rw,remount,barrier=1 /system
-  mount_need=true;
-
-# Run restore context
-  restorecon -R /cache
-  restorecon -R /system
-  restorecon -R /data
-  echo "init: init.selinux_restore.sh: restorecon done" > /dev/kmsg
+#
+# start two rild when dsds property enabled
+#
+dsds=`getprop persist.multisim.config`
+if [ "$dsds" = "dsds" ]; then
+    setprop ro.multi.rild true
+    stop ril-daemon
+    start ril-daemon
+    start ril-daemon1
 fi
-
-touch /system/etc/selinux_restore
-chmod 664 /system/etc/selinux_restore
-
-if $mount_need ;then
-# This should be the last command
-# remount system as read-only.
-  mount -o ro,remount,barrier=1 /system
-# echo "mount -o ro,remount,barrier=1 /system" > /dev/kmsg
-fi
-
