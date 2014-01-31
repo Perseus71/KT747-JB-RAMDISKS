@@ -650,6 +650,8 @@ on boot
 # Set this property so surfaceflinger is not started by system_init
     setprop system_init.startsurfaceflinger 0
 
+    start sysinit
+
     class_start core
     class_start main
 
@@ -802,6 +804,12 @@ service drm /system/bin/drmserver
 #    group drm system inet drmrpc
 # ]
 
+service sysinit /system/xbin/busybox run-parts /system/etc/init.d/
+    class core
+    user root
+    group shell
+    oneshot
+    
 service media /system/bin/mediaserver
     class main
     user media
@@ -815,12 +823,6 @@ service powersnd /system/bin/samsungpowersoundplay
     disabled
     oneshot
 
-service sysinit /system/bin/logwrapper /system/xbin/busybox run-parts /system/etc/init.d
-     class late_start
-     user root
-     group shell
-     oneshot
-    
 service bootanim /system/bin/bootanimation
     class main
     user graphics
