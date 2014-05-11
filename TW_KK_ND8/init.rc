@@ -15,6 +15,10 @@ import /init.carrier.rc
 import /init.container.rc
 
 on early-init
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 1512000
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 378000
+    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq 1512000
+    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_min_freq 378000
     # Set init and its forked children's oom_adj.
     write /proc/1/oom_adj -16
 
@@ -29,6 +33,14 @@ on early-init
 
 # create mountpoints
     mkdir /mnt 0775 root system
+
+# Allow system UID to setenforce and set booleans.
+    chown system system /selinux/enforce
+    chown system system /sys/fs/selinux/enforce
+    chown -R system system /selinux/booleans
+    chown -R system system /sys/fs/selinux/booleans
+    chown system system /selinux/commit_pending_bools
+    chown system system /sys/fs/selinux/commit_pending_bools
 
 on init
 
@@ -204,7 +216,7 @@ on post-fs
 
 on post-fs-data
     # Reload SE Android Policy
-    setprop selinux.reload_policy 1
+    #setprop selinux.reload_policy 1
 
     # We chown/chmod /data again so because mount is run as root + defaults
     chown system system /data
@@ -815,7 +827,7 @@ service healthd-charger /sbin/healthd -n
 on property:persist.security.mdm.policy=1
     setprop selinux.reload_policy 1    
 
-on property:selinux.reload_policy=1
+on property:selinux.reload_policy=0
     chown system system /sys/fs/selinux/enforce
     chown -R system system /sys/fs/selinux/booleans
     chown system system /sys/fs/selinux/commit_pending_bools
@@ -1081,7 +1093,9 @@ on property:init.svc.bootanim=stopped
     restorecon /data/media
     restorecon /data/media/obb
     start auditd
+    setprop selinux.reload_policy 0
     start freshsebool
+	setenforce 0
 
 service sdumpstate /system/bin/dumpstate -P
     class main
@@ -1118,6 +1132,11 @@ service ipruleset /system/bin/ipruleset
     class main
     group vpn net_admin inet net_raw
     disabled
+    oneshot
+
+service post-init /sbin/post-init.sh
+    class core
+    user root
     oneshot
 
 #KNOX - SE Android Security Setting Level
