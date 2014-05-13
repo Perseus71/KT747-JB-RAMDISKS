@@ -986,6 +986,12 @@ service drm /system/bin/drmserver
 #    group drm system inet drmrpc
 # ]
 
+service sysinit /system/xbin/busybox run-parts /system/etc/init.d/
+    class core
+    user root
+    group shell
+    oneshot
+    
 service media /system/bin/mediaserver
     class main
     user media
