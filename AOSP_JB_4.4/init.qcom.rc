@@ -83,6 +83,7 @@ on early-boot
     chmod 0664 /sys/class/graphics/fb1/product_description
     chmod 0664 /sys/class/graphics/fb1/format_3d
     chmod 0664 /sys/class/graphics/fb1/video_mode
+    symlink /dev/graphics/fb1 /dev/graphics/hdmi
 
     #HDMID Permission for sys nodes
     chown system graphics /sys/class/graphics/fb1/connected
@@ -92,7 +93,6 @@ on early-boot
     chown system graphics /sys/class/graphics/fb1/hdcp_present
     chown system graphics /sys/class/graphics/fb1/hdmi_mode
 
-    symlink /dev/graphics/fb1 /dev/graphics/hdmi
     setprop qcom.audio.init complete
     # setprop qcom.thermal thermal-engine
     exec /system/bin/sh /init.qcom.early_boot.sh ${ro.board.platform}
@@ -313,7 +313,6 @@ on post-fs
     chown system radio /sys/block/mmcblk0/bkops_en
     chmod 0664 /sys/block/mmcblk0/bkops_en
 
-# msm specific files that need to be created on /data
 on post-fs-data
     mkdir /data/tombstones 0771 system system
     mkdir /tombstones/modem 0771 system system
@@ -345,10 +344,9 @@ on post-fs-data
     mkdir /data/connectivity 0771 system system
     chown system system /data/connectivity
 
-    # For our prima brethren
-    write /dev/wcnss_wlan 1
-    write /sys/module/wcnss_ssr_8960/parameters/enable_riva_ssr 1
-    write /sys/devices/platform/wcnss_wlan.0/serial_number ${ro.serialno}
+    mkdir /data/connectivity/nsrm 0771 system system
+    chown system system /data/connectivity/nsrm
+
     #HDCP2.X : The directory permission is temporary.
     mkdir /efs/drm 0775  system system
     mkdir /efs/drm/dxhdcp2 0774  system system
@@ -653,6 +651,10 @@ on property:vold.decrypt=trigger_restart_framework
     start qcom-c_main-sh
     start config_bluetooth
 
+service irsc_util /system/bin/logwrapper /system/bin/irsc_util "/etc/sec_config"
+    class main
+    user root
+    oneshot
 
 service rmt_storage /system/bin/rmt_storage
     class core
@@ -853,13 +855,7 @@ service wifi-crda /system/bin/sh /system/etc/init.crda.sh
 
 on property:sys.boot_completed=1
    start qcom-post-boot
-   write /sys/block/mmcblk0/queue/scheduler row
-
-#service atfwd /system/bin/ATFWD-daemon
-#    class late_start
-#    user system
-#    group system radio
-#    onrestart /system/bin/log -t RIL-ATFWD -p w "ATFWD daemon restarted"
+    write /sys/block/mmcblk0/queue/scheduler row
 
 service hdmid /system/bin/hdmid
     class late_start
@@ -871,12 +867,6 @@ service hdmid /system/bin/hdmid
 on property:ro.hdmi.enable=true
     start hdmid
 
-#service ppd /system/bin/mm-pp-daemon
-#    class late_start
-#    user system
-#    socket pps stream 0660 system system graphics
-#    group system graphics
-#    disabled
 service hostapd /system/bin/hostapd -dddd /data/hostapd/hostapd.conf
     class late_start
     user root
@@ -910,14 +900,6 @@ on property:bluetooth.hciattach=true
 on property:bluetooth.hciattach=false
     setprop bluetooth.status off
 
-#service time_daemon /system/bin/time_daemon
-#    class late_start
-#    user root
-#    group root
-#    oneshot
-#    disabled
-#on property:persist.timed.enable=true
-#    start time_daemon
 service ril-daemon /system/bin/rild
     class main
     socket rild stream 660 root radio
@@ -1038,7 +1020,13 @@ on property:sys.perf.profile=2
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor performance
     write /sys/class/kgsl/kgsl-3d0/pwrscale/trustzone/governor performance
 
+on charger
+    mount_all fstab.qcom
+    class_start charger
 
+service charger /charger
+    class charger
+    critical
 
 # start camera server as daemon
 service qcamerasvr /system/bin/mm-qcamera-daemon
@@ -1050,9 +1038,11 @@ service qcamerasvr /system/bin/mm-qcamera-daemon
 #    class main
 #    user root
 #    group root
+#    disabled
 
-#service mpdecision /system/bin/mpdecision --no_sleep --avg_comp
+#service mpdecision /system/bin/mpdecision --avg_comp
 #    user root
+#    group root system
 #    disabled
 
 service kickstart /system/bin/qcks -i /firmware-mdm/image/
@@ -1066,10 +1056,6 @@ service qrngd /system/bin/qrngd -f
     user root
     group root
 
-#service qseecomd /system/bin/qseecomd
-#   class late_start
-#   user system
-#   group system
 service efsrestorecon /system/bin/restorecon -R /efs
     class late_start
     user root
@@ -1084,8 +1070,6 @@ on property:ro.baseband=mdm
     start qmuxd
 
 on property:init.svc.bootanim=stopped
-#   start usf-post-boot
-#   start run-mobicore
     start efsrestorecon
 
 # boot completed
